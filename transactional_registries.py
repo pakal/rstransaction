@@ -5,8 +5,6 @@ Created on 22 déc. 2009
 
 @author: Admin
 '''
-from IPython.genutils import tmpfile
-
 import sys, os, shutil, stat, random, time, tempfile
 import unittest, collections
 
@@ -19,6 +17,7 @@ if not os.path.isdir(transaction_temp_dir):
     os.makedirs(transaction_temp_dir)
     
 
+### WIP FILE - BROKEN ###
 
 # TODO : make mspecial filesste, mixing standard methods (stat() etc) and repeated
 # high level operations on a transaction rmtree etc.)
