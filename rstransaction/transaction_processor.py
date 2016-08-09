@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-'''
-Created on 21 déc. 2009
-
-@author: Admin
-'''
-
-
 
 import sys, os, functools
 from contextlib import contextmanager

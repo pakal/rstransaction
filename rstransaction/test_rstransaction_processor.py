@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-'''
-Created on 22 déc. 2009
 
-@author: Admin
-'''
 
 import sys, os, shutil, stat, random, time
 import unittest, collections
@@ -24,7 +20,7 @@ class TestActionRecorderBase(unittest.TestCase):
         pass
 
 
-    def testBehaviour(self):
+    def testActionRecorderBehaviour(self):
         rec = self.recorder
 
         self.assertTrue(rec.is_empty())
