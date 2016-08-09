@@ -26,29 +26,11 @@ class TransactionRollbackFailure(TransactionFailure):
     pass
 
 
-'''
-@staticmethod
-def _pack_arguments(*args, **kwargs):
-    """
-    This static method simply returns its arguments as
-    a standard tuple (args, kwargs), with args being a list of positional 
-    arguments, and kwargs a dict of keyword arguments.
-    This might be of some use to easily pack the values to be returned 
-    by meth`preprocess_arguments`.
-    """
-    return (args, kwargs)
-'''
-
-
-
 
 class TransactionalActionBase(object):
     """
     This abstract class defines the interface and semantic of "transactional action" objects.
     """
-
-
-
 
     def preprocess_arguments(self, *args, **kwargs):
         """
