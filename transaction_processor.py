@@ -136,7 +136,7 @@ class TransactionalActionRegistry(object):
     def __init__(self, *source_action_registries, **initial_actions):
 
         # First, we check that no conflict will happen with the different names
-        all_names = initial_actions.keys()
+        all_names = list(initial_actions.keys())
         for source in source_action_registries:
             all_names += source.list_registered_actions()
         if len(all_names) != len(set(all_names)): # else, duplicate names found...
@@ -165,7 +165,7 @@ class TransactionalActionRegistry(object):
         del self._registered_actions[name]
 
     def list_registered_actions(self):
-        return self._registered_actions.keys()
+        return list(self._registered_actions.keys())
 
     def get_action(self, name):
         if name not in self._registered_actions:
@@ -209,7 +209,7 @@ class ActionRecorderBase(object):
             raise TransactionWorkflowError("No existing savepoint")
         savepoint_position = self._savepoint_indexes[-1]
         records_concerned = len(self._performed_actions_log) - savepoint_position
-        return (records_concerned / 2 + records_concerned % 2) # one of the actions might be unfinished...
+        return int(records_concerned / 2 + records_concerned % 2) # one of the actions might be unfinished...
 
     def commit_last_savepoint(self):
         if not (self.is_empty() or self.last_action_is_finished()):
@@ -373,14 +373,14 @@ class TransactionBase(object):
         try:
             self._begin_action_processing(name, new_args, new_kwargs)
         except Exception as e:
-            raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+            raise TransactionRecordingFailure(repr(e))
 
         result = action.process_action(*new_args, **new_kwargs) # might raise exceptions - recovery needed then
 
         try:
             self._finish_action_processing(result)
         except Exception as e:
-            raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+            raise TransactionRecordingFailure(repr(e))
 
         return result
 
@@ -394,7 +394,7 @@ class TransactionBase(object):
         try:
             need_unfinished_action_rollback = not self._action_recorder.is_empty() and not self._action_recorder.last_action_is_finished()
         except Exception as e:
-            raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2] # should never happen
+            raise TransactionRecordingFailure(repr(e)) # should never happen
 
         if need_unfinished_action_rollback:
 
@@ -402,14 +402,14 @@ class TransactionBase(object):
                 (name, args, kwargs) = self._action_recorder.get_unfinished_action()
                 action = self._action_registry.get_action(name)
             except Exception as e:
-                raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+                raise TransactionRecordingFailure(repr(e))
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=True) # we try to rollback the unfinished action
 
             try:
                 self._action_recorder.rollback_unfinished_action()
             except Exception as e:
-                raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+                raise TransactionRecordingFailure(repr(e))
 
             return True
 
@@ -437,14 +437,14 @@ class TransactionBase(object):
                 ((name, args, kwargs), result) = self._action_recorder.get_finished_action()
                 action = self._action_registry.get_action(name)
             except Exception as e:
-                raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+                raise TransactionRecordingFailure(repr(e))
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=False, result=result) # we try to rollback the last finished action
 
             try:
                 self._action_recorder.rollback_finished_action()
             except Exception as e:
-                raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+                raise TransactionRecordingFailure(repr(e))
 
             assert rollback_to_last_savepoint or self._action_recorder.is_empty()
 
@@ -457,7 +457,7 @@ class TransactionBase(object):
         try:
             self._action_recorder.commit_transaction()
         except Exception as e:
-            raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
+            raise TransactionRecordingFailure(repr(e))
 
 
 
@@ -519,7 +519,7 @@ class InteractiveTransaction(TransactionBase):
                 raise # we reraise the original exception
             except Exception as f:
                 #TODO - PY3K - real exception chaining required here !
-                raise TransactionRollbackFailure, ("%r raised during rollback attempt, after receiving %r" % (f, e)), sys.exc_info()[2]
+                raise TransactionRollbackFailure("%r raised during rollback attempt, after receiving %r" % (f, e))
 
     def tx_rollback_interrupted_action(self):
         res = self._rollback_to_last_consistent_state()
@@ -530,7 +530,7 @@ class InteractiveTransaction(TransactionBase):
             self._rollback_consistent_transaction()
         except Exception as f:
             #TODO - PY3K - real exception chaining required here !
-            raise TransactionRollbackFailure, ("%r raised during rollback attempt" % f), sys.exc_info()[2]
+            raise TransactionRollbackFailure("%r raised during rollback attempt" % f)
 
     def tx_commit(self):
         self._commit_consistent_transaction() # should already raise proper exceptions
