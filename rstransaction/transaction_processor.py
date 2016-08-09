@@ -302,25 +302,6 @@ class ActionRecorderBase(object):
 
 
 
-""" DEPRECATED
- __metaclass__ = TransactionMetaclass # creates a class attribute "_registered_actions"
- 
-class TransactionMetaclass(type):
-    "
-    This metaclass ensures that all transaction classes have dedicated
-    _registered_actions dict, a specific set of transactional actions, so that 
-    action registration in a transaction class doesn't interfer with others
-    "
-    
-    def __init__(cls, name, bases, dict):
-        object.__init__(name, bases, dict)
-        if not "_registered_actions" in cls.__dict__:
-            cls._registered_actions = {}
-            
-"""
-
-
-
 class TransactionBase(object):
 
 
@@ -473,7 +454,7 @@ class TransactionBase(object):
 class InteractiveTransaction(TransactionBase):
 
     def __init__(self, action_registry, action_recorder=None, auto_micro_rollback=True):
-        super(TransactionBase, self).__init__(action_registry=action_registry, action_recorder=action_recorder)
+        super(InteractiveTransaction, self).__init__(action_registry=action_registry, action_recorder=action_recorder)
         self._auto_micro_rollback = auto_micro_rollback
 
 
@@ -491,11 +472,12 @@ class InteractiveTransaction(TransactionBase):
                 raise
             try:
                 self._rollback_to_last_consistent_state()
-                raise # we reraise the original exception
             except Exception as f:
                 #TODO - PY3K - real exception chaining required here !
                 raise TransactionRollbackFailure("%r raised during rollback attempt, after receiving %r" % (f, e))
-
+            else:
+                raise e  # we reraise the original exception
+                
     def tx_rollback_interrupted_action(self):
         res = self._rollback_to_last_consistent_state()
 

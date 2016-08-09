@@ -235,7 +235,7 @@ class TestInteractiveTransaction(unittest.TestCase):
         self.DEPOT = DEPOT = []
 
         def transform(number):
-            assert isinstance(number, (int, long))
+            assert isinstance(number, int)
             return (str(number), len(DEPOT)), {}
 
         def transform_fail(number):
@@ -297,11 +297,33 @@ class TestInteractiveTransaction(unittest.TestCase):
         pass
 
 
-    def _testWholeTransaction(self):
+    def testWholeTransaction(self):
 
         tp = self.tp  # interactive transaction processor
 
-
+        tp.tx_process_action("action_success", 1)
+        
+        with tp.tx_savepoint():
+            tp.tx_process_action("action_success", number=66)
+           
+        assert self.DEPOT == ["1", "66"], self.DEPOT
+        
+        with self.assertRaises(ValueError):
+        
+            with tp.tx_savepoint():
+            
+                tp.tx_process_action("action_success", number=201)
+                
+                assert self.DEPOT == ["1", "66", "201"], self.DEPOT
+                
+                tp.tx_process_action("action_bad_preprocess", number=404)
+                
+        assert self.DEPOT == ["1", "66"], self.DEPOT  # well rolled back to savepoint
+        
+        
+        
+        
+        assert False
         # TODO
 
 
