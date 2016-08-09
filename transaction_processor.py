@@ -372,14 +372,14 @@ class TransactionBase(object):
 
         try:
             self._begin_action_processing(name, new_args, new_kwargs)
-        except Exception, e:
+        except Exception as e:
             raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
         result = action.process_action(*new_args, **new_kwargs) # might raise exceptions - recovery needed then
 
         try:
             self._finish_action_processing(result)
-        except Exception, e:
+        except Exception as e:
             raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
         return result
@@ -393,7 +393,7 @@ class TransactionBase(object):
 
         try:
             need_unfinished_action_rollback = not self._action_recorder.is_empty() and not self._action_recorder.last_action_is_finished()
-        except Exception, e:
+        except Exception as e:
             raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2] # should never happen
 
         if need_unfinished_action_rollback:
@@ -401,14 +401,14 @@ class TransactionBase(object):
             try:
                 (name, args, kwargs) = self._action_recorder.get_unfinished_action()
                 action = self._action_registry.get_action(name)
-            except Exception, e:
+            except Exception as e:
                 raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=True) # we try to rollback the unfinished action
 
             try:
                 self._action_recorder.rollback_unfinished_action()
-            except Exception, e:
+            except Exception as e:
                 raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
             return True
@@ -436,14 +436,14 @@ class TransactionBase(object):
             try:
                 ((name, args, kwargs), result) = self._action_recorder.get_finished_action()
                 action = self._action_registry.get_action(name)
-            except Exception, e:
+            except Exception as e:
                 raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=False, result=result) # we try to rollback the last finished action
 
             try:
                 self._action_recorder.rollback_finished_action()
-            except Exception, e:
+            except Exception as e:
                 raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
             assert rollback_to_last_savepoint or self._action_recorder.is_empty()
@@ -456,7 +456,7 @@ class TransactionBase(object):
 
         try:
             self._action_recorder.commit_transaction()
-        except Exception, e:
+        except Exception as e:
             raise TransactionRecordingFailure(repr(e)), None, sys.exc_info()[2]
 
 
@@ -511,13 +511,13 @@ class InteractiveTransaction(TransactionBase):
             return self._execute_selected_action(name, args, kwargs)
         except TransactionFailure:
             raise # that's very bad... just let it propagate
-        except Exception, e:
+        except Exception as e:
             if not self._auto_micro_rollback:
                 raise
             try:
                 self._rollback_to_last_consistent_state()
                 raise # we reraise the original exception
-            except Exception, f:
+            except Exception as f:
                 #TODO - PY3K - real exception chaining required here !
                 raise TransactionRollbackFailure, ("%r raised during rollback attempt, after receiving %r" % (f, e)), sys.exc_info()[2]
 
@@ -528,7 +528,7 @@ class InteractiveTransaction(TransactionBase):
         try:
             self._rollback_to_last_consistent_state() # in case it's not done yet
             self._rollback_consistent_transaction()
-        except Exception, f:
+        except Exception as f:
             #TODO - PY3K - real exception chaining required here !
             raise TransactionRollbackFailure, ("%r raised during rollback attempt" % f), sys.exc_info()[2]
 
