@@ -322,8 +322,21 @@ class TestInteractiveTransaction(unittest.TestCase):
 
         tp = self.tp  # interactive transaction processor
 
-        tp.tx_process_action("action_success", 1)
+        with tp:
+            tp.tx_process_action("action_success", 1)
+            with self.assertRaises(TransactionWorkflowError):
+                with tp:  # can't nest transactions, use savepoint!
+                    pass  
 
+        assert self.DEPOT == ["1"], self.DEPOT
+        
+        with self.assertRaises(IOError):
+            with tp:
+                tp.tx_process_action("action_success", 222)
+                raise IOError("abort TP")
+
+        assert self.DEPOT == ["1"], self.DEPOT
+            
         with tp.tx_savepoint():
             tp.tx_process_action("action_success", number=66)
 
@@ -385,6 +398,7 @@ class TestInteractiveTransaction(unittest.TestCase):
             tp.tx_commit()
         with self.assertRaises(TransactionRollbackFailure):
             tp.tx_rollback()
+   
 
 
 if __name__ == "__main__":

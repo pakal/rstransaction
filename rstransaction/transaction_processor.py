@@ -420,10 +420,11 @@ class TransactionBase(object):
 
 
 class InteractiveTransaction(TransactionBase):
-
+    
     def __init__(self, action_registry, action_recorder=None):
         super(InteractiveTransaction, self).__init__(action_registry=action_registry, action_recorder=action_recorder)
-
+        self._is_in_context_manager_transaction = False
+        
     def tx_process_action(self, name, *args, **kwargs):
 
         if not (self._action_recorder.is_empty() or self._action_recorder.last_action_is_finished()
@@ -447,7 +448,21 @@ class InteractiveTransaction(TransactionBase):
 
     def tx_commit(self):
         self._commit_consistent_transaction()  # should already raise proper exceptions
-
+        
+        
+    def __enter__(self):
+        if self._is_in_context_manager_transaction or self._action_recorder.get_action_count():
+            raise TransactionWorkflowError("Can't start a new transaction while another is still in process")
+        self._is_in_context_manager_transaction = True
+        
+    def __exit__(self, eType, eValue, eTrace):
+        self._is_in_context_manager_transaction = False
+        if eType:
+            self.tx_rollback()
+        else: 
+            self.tx_commit()
+        
+    
     @contextmanager
     def tx_savepoint(self):
         self.tx_create_savepoint()
