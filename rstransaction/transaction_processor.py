@@ -309,6 +309,9 @@ class TransactionBase(object):
             action_recorder = ActionRecorderBase()
         self._action_recorder = action_recorder
 
+        self._is_in_context_manager_transaction = False
+
+
     def __getattr__(self, name):
         if not name in self._action_registry.list_registered_actions():
             raise AttributeError("Action Registry of %r has no action called %s" % (self, name))
@@ -418,12 +421,37 @@ class TransactionBase(object):
     def tx_commit_savepoint(self):
         raise NotImplementedError(__name__)
 
+        
+    def __enter__(self):
+        if self._is_in_context_manager_transaction or self._action_recorder.get_action_count():
+            raise TransactionWorkflowError("Can't start a new transaction while another is still in process")
+        self._is_in_context_manager_transaction = True
 
+    def __exit__(self, eType, eValue, eTrace):
+        self._is_in_context_manager_transaction = False
+        if eType:
+            self.tx_rollback()
+        else: 
+            self.tx_commit()
+
+    @contextmanager
+    def tx_savepoint(self):
+        self.tx_create_savepoint()
+        try:
+            yield
+        except TransactionFailure:
+            raise  # we must not try to handle this critical problem by ourselves...
+        except Exception:
+            self.tx_rollback_savepoint()
+            raise
+        else:
+            self.tx_commit_savepoint()
+
+ 
 class InteractiveTransaction(TransactionBase):
     
     def __init__(self, action_registry, action_recorder=None):
         super(InteractiveTransaction, self).__init__(action_registry=action_registry, action_recorder=action_recorder)
-        self._is_in_context_manager_transaction = False
         
     def tx_process_action(self, name, *args, **kwargs):
 
@@ -448,33 +476,7 @@ class InteractiveTransaction(TransactionBase):
 
     def tx_commit(self):
         self._commit_consistent_transaction()  # should already raise proper exceptions
-        
-        
-    def __enter__(self):
-        if self._is_in_context_manager_transaction or self._action_recorder.get_action_count():
-            raise TransactionWorkflowError("Can't start a new transaction while another is still in process")
-        self._is_in_context_manager_transaction = True
-        
-    def __exit__(self, eType, eValue, eTrace):
-        self._is_in_context_manager_transaction = False
-        if eType:
-            self.tx_rollback()
-        else: 
-            self.tx_commit()
-        
-    
-    @contextmanager
-    def tx_savepoint(self):
-        self.tx_create_savepoint()
-        try:
-            yield
-        except TransactionFailure:
-            raise  # we must not try to handle this critical problem by ourselves...
-        except Exception:
-            self.tx_rollback_savepoint()
-            raise
-        else:
-            self.tx_commit_savepoint()
+
 
     def tx_create_savepoint(self):
         self._action_recorder.create_savepoint()
