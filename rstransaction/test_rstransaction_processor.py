@@ -6,7 +6,7 @@ import sys, os, shutil, stat, random, time
 import unittest, collections
 
 import rstransaction.transaction_processor as TP
-from rstransaction.transaction_processor import TransactionWorkflowError
+from rstransaction.transaction_processor import TransactionWorkflowError, TransactionRollbackFailure
 
 
 
@@ -129,7 +129,11 @@ class TestActionRegistry(unittest.TestCase):
         self.assertEqual(tb_merge.list_registered_actions(), ['action2'])
         self.assertEqual(tb_merge.get_registry(), {'action2': action2})
 
-
+        with self.assertRaises(ValueError):
+            tb.unregister_action("unexisting_action")
+        with self.assertRaises(ValueError):
+            tb.get_action("unexisting_action")
+            
 
 class TestTransactionBase(unittest.TestCase):
 
@@ -244,13 +248,16 @@ class TestInteractiveTransaction(unittest.TestCase):
         def add_word(word, initial_size):
             DEPOT.append(word)
             return len(DEPOT)
-
+            
+        def add_word_fail(word, initial_size):
+            raise ValueError("add_word_fail")
+        
         def add_word_random_fail(word, initial_size):
             if not random.randint(0, 2):
-                raise ValueError()
+                raise ValueError("add_word_random_fail")
             res = add_word(word, initial_size)
             if not random.randint(0, 2):
-                raise IOError()
+                raise IOError("add_word_random_fail")
             return res
 
         def _remove_word(word, initial_size):
@@ -281,12 +288,12 @@ class TestInteractiveTransaction(unittest.TestCase):
                                       TP.TransactionalActionAdapter(add_word, rollback_word,
                                                                     preprocess_arguments=transform_fail))
 
-        self.registry.register_action("action_failure",
+        self.registry.register_action("action_random_failure",
                                       TP.TransactionalActionAdapter(add_word_random_fail, rollback_word,
                                                                     preprocess_arguments=transform))
 
         self.registry.register_action("action_failure_unfixable",
-                                      TP.TransactionalActionAdapter(add_word, rollback_word_fail,
+                                      TP.TransactionalActionAdapter(add_word_fail, rollback_word_fail,
                                                                     preprocess_arguments=transform))
 
 
@@ -297,7 +304,7 @@ class TestInteractiveTransaction(unittest.TestCase):
         pass
 
 
-    def testWholeTransaction(self):
+    def testWholeInteractiveTransaction(self):
 
         tp = self.tp  # interactive transaction processor
 
@@ -320,13 +327,50 @@ class TestInteractiveTransaction(unittest.TestCase):
                 
         assert self.DEPOT == ["1", "66"], self.DEPOT  # well rolled back to savepoint
         
+        tp.tx_process_action("action_success", number=12)
         
+        assert self.DEPOT == ["1", "66", "12"], self.DEPOT
         
+        tp.tx_commit()
         
-        assert False
-        # TODO
+        assert self.DEPOT == ["1", "66", "12"], self.DEPOT
+        
+        tp.tx_rollback()
+        
+        assert self.DEPOT == ["1", "66", "12"], self.DEPOT  # unchanged
+        
+        tp.tx_process_action("action_success", number=55)
+        
+        assert self.DEPOT == ["1", "66", "12", "55"], self.DEPOT
+        
+        tp.tx_rollback()
+        
+        assert self.DEPOT == ["1", "66", "12"], self.DEPOT  # reverted to last COMMIT point
 
-
+        tp.tx_process_action("action_success", number=55)
+        
+        assert self.DEPOT == ["1", "66", "12", "55"], self.DEPOT
+        
+        with self.assertRaises((IOError, ValueError)):
+            while True:
+                tp.tx_process_action("action_random_failure", number=13)
+                
+        assert self.DEPOT != ["1", "66", "12"], self.DEPOT
+        
+        with self.assertRaises(TransactionWorkflowError):
+            tp.tx_process_action("action_success", number=888) 
+        with self.assertRaises(TransactionWorkflowError):
+            tp.tx_commit()
+        tp.tx_rollback()    
+        
+        assert self.DEPOT == ["1", "66", "12"], self.DEPOT
+        
+        with self.assertRaises(ValueError):
+            tp.tx_process_action("action_failure_unfixable", number=44)
+        with self.assertRaises(TransactionWorkflowError):
+            tp.tx_commit()
+        with self.assertRaises(TransactionRollbackFailure):
+            tp.tx_rollback()
 
 
 if __name__ == "__main__":

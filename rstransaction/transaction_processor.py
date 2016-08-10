@@ -144,7 +144,7 @@ class TransactionalActionRegistry(object):
 
     def get_action(self, name):
         if name not in self._registered_actions:
-            raise ValueError("Unxisting action name" % name)
+            raise ValueError("Unxisting action name %s" % name)
         return self._registered_actions[name]
 
     def get_registry(self):
@@ -402,7 +402,7 @@ class TransactionBase(object):
             except Exception as e:
                 raise TransactionRecordingFailure(repr(e))
 
-            assert rollback_to_last_savepoint or self._action_recorder.is_empty()
+        assert rollback_to_last_savepoint or self._action_recorder.is_empty(), "incoherence in _rollback_consistent_transaction"
 
 
     def _commit_consistent_transaction(self):
@@ -453,10 +453,8 @@ class TransactionBase(object):
 
 class InteractiveTransaction(TransactionBase):
 
-    def __init__(self, action_registry, action_recorder=None, auto_micro_rollback=True):
+    def __init__(self, action_registry, action_recorder=None):
         super(InteractiveTransaction, self).__init__(action_registry=action_registry, action_recorder=action_recorder)
-        self._auto_micro_rollback = auto_micro_rollback
-
 
     def tx_process_action(self, name, *args, **kwargs):
 
@@ -468,18 +466,7 @@ class InteractiveTransaction(TransactionBase):
         except TransactionFailure:
             raise # that's very bad... just let it propagate
         except Exception as e:
-            if not self._auto_micro_rollback:
-                raise
-            try:
-                self._rollback_to_last_consistent_state()
-            except Exception as f:
-                #TODO - PY3K - real exception chaining required here !
-                raise TransactionRollbackFailure("%r raised during rollback attempt, after receiving %r" % (f, e))
-            else:
-                raise e  # we reraise the original exception
-                
-    def tx_rollback_interrupted_action(self):
-        res = self._rollback_to_last_consistent_state()
+            raise e  # we just reraise the original exception
 
     def tx_rollback(self):
         try:
