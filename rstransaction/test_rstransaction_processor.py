@@ -6,7 +6,7 @@ import sys, os, shutil, stat, random, time
 import unittest, collections
 
 import rstransaction.transaction_processor as TP
-from rstransaction.transaction_processor import TransactionWorkflowError, TransactionRollbackFailure
+from rstransaction.transaction_processor import TransactionWorkflowError, TransactionRollbackFailure, TransactionRecordingFailure
 
 
 
@@ -100,6 +100,12 @@ class TestActionRegistry(unittest.TestCase):
 
     def testRegistries(self):
 
+        with TP.recording_failure_handler():
+            _ = "nothing happens"
+        with self.assertRaises(TransactionRecordingFailure):
+            with TP.recording_failure_handler():
+                raise ValueError("tralalal")
+    
         action1 = TP.TransactionalActionAdapter(lambda:"process1", lambda w, x, y, z:"rollback1")
         action2 = TP.TransactionalActionAdapter(lambda:"process2", lambda w, x, y, z:"rollback2", lambda: ((), {}))
 
@@ -214,7 +220,8 @@ class TestTransactionBase(unittest.TestCase):
         tb._execute_selected_action("action_success")
         self.assertRaises(ZeroDivisionError, tb._execute_selected_action, "action_failure", ("myarg1",), {"y":"myarg2"})
         self.assertRaises(TransactionWorkflowError, tb._commit_consistent_transaction)
-
+        self.assertRaises(TransactionWorkflowError, tb._rollback_consistent_transaction)
+        
         tb._rollback_to_last_consistent_state()
         tb._rollback_consistent_transaction(rollback_to_last_savepoint=True)
         rec.rollback_last_savepoint()
@@ -227,6 +234,10 @@ class TestTransactionBase(unittest.TestCase):
         self.assertEqual(rec.get_action_count(), 1)
         tb._commit_consistent_transaction()
         self.assertEqual(rec.get_action_count(), 0)
+        
+        rec.create_savepoint()
+        self.assertRaises(TransactionWorkflowError, tb._rollback_consistent_transaction)  # savepoint blocks it
+        
 
 
 

@@ -18,7 +18,14 @@ class TransactionRecordingFailure(TransactionFailure):
 class TransactionRollbackFailure(TransactionFailure):
     pass
 
-
+@contextmanager
+def recording_failure_handler():
+    "Rewrites outgoing exceptions as TransactionRecordingFailure"
+    try:
+        yield
+    except Exception as e:
+        raise TransactionRecordingFailure(repr(e))  
+    
 
 class TransactionalActionBase(object):
     """
@@ -326,17 +333,13 @@ class TransactionBase(object):
         action = self._action_registry.get_action(name) # might raise exceptions - no rollback needed in this case
         (new_args, new_kwargs) = action.preprocess_arguments(*args, **kwargs) # might raise exceptions - no rollback needed in this case
 
-        try:
+        with recording_failure_handler():
             self._begin_action_processing(name, new_args, new_kwargs)
-        except Exception as e:
-            raise TransactionRecordingFailure(repr(e))
 
         result = action.process_action(*new_args, **new_kwargs) # might raise exceptions - recovery needed then
 
-        try:
+        with recording_failure_handler():
             self._finish_action_processing(result)
-        except Exception as e:
-            raise TransactionRecordingFailure(repr(e))
 
         return result
 
@@ -347,25 +350,19 @@ class TransactionBase(object):
         May raise TransactionRecordingFailure errors, or any exception raised by the rollback operation.
         """
 
-        try:
+        with recording_failure_handler():
             need_unfinished_action_rollback = not self._action_recorder.is_empty() and not self._action_recorder.last_action_is_finished()
-        except Exception as e:
-            raise TransactionRecordingFailure(repr(e)) # should never happen
-
+            
         if need_unfinished_action_rollback:
 
-            try:
+            with recording_failure_handler():
                 (name, args, kwargs) = self._action_recorder.get_unfinished_action()
                 action = self._action_registry.get_action(name)
-            except Exception as e:
-                raise TransactionRecordingFailure(repr(e))
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=True) # we try to rollback the unfinished action
 
-            try:
+            with recording_failure_handler():
                 self._action_recorder.rollback_unfinished_action()
-            except Exception as e:
-                raise TransactionRecordingFailure(repr(e))
 
             return True
 
@@ -389,18 +386,14 @@ class TransactionBase(object):
 
         for _ in range(actions_to_undo):
 
-            try:
+            with recording_failure_handler():
                 ((name, args, kwargs), result) = self._action_recorder.get_finished_action()
                 action = self._action_registry.get_action(name)
-            except Exception as e:
-                raise TransactionRecordingFailure(repr(e))
 
             action.rollback_action(args=args, kwargs=kwargs, was_interrupted=False, result=result) # we try to rollback the last finished action
 
-            try:
+            with recording_failure_handler():
                 self._action_recorder.rollback_finished_action()
-            except Exception as e:
-                raise TransactionRecordingFailure(repr(e))
 
         assert rollback_to_last_savepoint or self._action_recorder.is_empty(), "incoherence in _rollback_consistent_transaction"
 
@@ -410,11 +403,8 @@ class TransactionBase(object):
         if not (self._action_recorder.is_empty() or self._action_recorder.last_action_is_finished()):
             raise TransactionWorkflowError("Error issuing a consistent commit on an inconsistent transaction")
 
-        try:
+        with recording_failure_handler():
             self._action_recorder.commit_transaction()
-        except Exception as e:
-            raise TransactionRecordingFailure(repr(e))
-
 
 
     def _begin_action_processing(self, name, args, kwargs):
