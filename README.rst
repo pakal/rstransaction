@@ -17,7 +17,7 @@ Using pip is recommended, although installing from a checkout of the repository 
 
     $ pip install rstransaction
 
-    
+
 USAGE
 ---------
 
@@ -46,7 +46,7 @@ The "tx_savepoint" attribute of transaction processor can also be used as a cont
 
 A transaction processor automatically begins a new transaction, on commit or rollback, so it can be reused.
 
-Note that exceptions do not get swallowed by this system, even if an automatic rollback occurrs.
+Note that exceptions do not get swallowed by this system, even if an automatic rollback occurs.
 
-Subclasses of "TransactionFailure" are used to report errors linked to the transaction systemn, as exceptions.
+Subclasses of `TransactionFailure` are used to report errors linked to the transaction systemn, as exceptions.
 
