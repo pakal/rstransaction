@@ -2,21 +2,27 @@
 # -*- coding: utf-8 -*-
 
 
-import sys, os, functools
+import sys
+import os
+import functools
 from contextlib import contextmanager
 
 
 class TransactionFailure(Exception):
     pass
 
+
 class TransactionWorkflowError(TransactionFailure):
     pass
+
 
 class TransactionRecordingFailure(TransactionFailure):
     pass
 
+
 class TransactionRollbackFailure(TransactionFailure):
     pass
+
 
 @contextmanager
 def recording_failure_handler():
@@ -24,8 +30,8 @@ def recording_failure_handler():
     try:
         yield
     except Exception as e:
-        raise TransactionRecordingFailure(repr(e))  
-    
+        raise TransactionRecordingFailure(repr(e))
+
 
 class TransactionalActionBase(object):
     """
@@ -35,12 +41,12 @@ class TransactionalActionBase(object):
     def preprocess_arguments(self, *args, **kwargs):
         """
         Method called just before executing the action.
-        Its only role is to transform the arguments received by the action, 
+        Its only role is to transform the arguments received by the action,
         into a set of context-independent parameters (maybe with the help of instance-specific
         attributes), which fully determine what the action will do.
-        For example, such a treatment might transform relative path into absolute ones, 
+        For example, such a treatment might transform relative path into absolute ones,
         and determine the resources needed to perform the action in an "undo-able" way.
-        The tuple (args, kwargs) that this method returns will be recorded, and expanded 
+        The tuple (args, kwargs) that this method returns will be recorded, and expanded
         in input (i.e *args and **kwargs) to :meth:`process_action` and :meth:`rollback_action`.
         """
         return (args, kwargs)
@@ -50,10 +56,10 @@ class TransactionalActionBase(object):
         """
         This static method receives preprocessed arguments in input, and
         shall perform the transactional action it represents, returning its result (if any).
-        Any error preventing the success of this action shall simply be left propagating, so 
-        that upper level transactional structures can take measures accordingly (:meth:`rollback_action` 
+        Any error preventing the success of this action shall simply be left propagating, so
+        that upper level transactional structures can take measures accordingly (:meth:`rollback_action`
         shall not be directly called by this method).
-        Note that the signature and return type of this method are free, as long as expected arguments 
+        Note that the signature and return type of this method are free, as long as expected arguments
         match the output of the potential :meth:`preprocess_arguments` method.
         """
         raise NotImplementedError()
@@ -64,9 +70,9 @@ class TransactionalActionBase(object):
         This static method shall determine and undo all the changes made by a previous
         :meth:`process_action` call.
         If :meth:`process_action` was interrupted by a crash or an exception, *was_interrupted*
-        is True, and *result* is None. Else, result is the value (if any) which was returned by the 
+        is True, and *result* is None. Else, result is the value (if any) which was returned by the
         meth:`process_action` call - this might be an appreciable hint in some circumstances.
-        In any case, args and kwargs are the list and dict which contain the arguments with which 
+        In any case, args and kwargs are the list and dict which contain the arguments with which
         :meth:`process_action` was called.
         In case of trouble preventing the rollback, this method shall raise an exception.
         No return value is expected.
@@ -76,16 +82,16 @@ class TransactionalActionBase(object):
 
 _function_interrupted = object()
 
+
 class TransactionalActionAdapter(TransactionalActionBase):
     """
     This class provides a handy way of creating transactional action instances.
     Instead of subclassing :class:`TransactionalActionBase`, you may simply instanciate
-    this class by providing process_action and rollback_action callables (with potentially a 
+    this class by providing process_action and rollback_action callables (with potentially a
     preprocess_arguments one, which must NOT expect 'self' as first argument).
     The resulting object will behave like the instance of a subclass of :class:`TransactionalActionBase`,
     which would have overriden necessary methods.
     """
-
 
     def __init__(self, process_action, rollback_action, preprocess_arguments=None):
 
@@ -97,7 +103,7 @@ class TransactionalActionAdapter(TransactionalActionBase):
 
     def preprocess_arguments(self, *args, **kwargs):
         if not self._preprocess_arguments:
-            return (args, kwargs) # default preprocessing : do nothing
+            return (args, kwargs)  # default preprocessing : do nothing
         else:
             return self._preprocess_arguments(*args, **kwargs)
 
@@ -105,15 +111,13 @@ class TransactionalActionAdapter(TransactionalActionBase):
         return self._process_action(*args, **kwargs)
 
     def rollback_action(self, args, kwargs, was_interrupted, result=_function_interrupted):
-        if not (was_interrupted and result is _function_interrupted) and not (not was_interrupted and not result is _function_interrupted):
+        if not (was_interrupted and result is _function_interrupted) and not (
+                not was_interrupted and not result is _function_interrupted):
             raise ValueError("Wrong argument combination for rollback_action")
         return self._rollback_action(args, kwargs, was_interrupted, result)
 
 
-
-
 class TransactionalActionRegistry(object):
-
 
     def __init__(self, *source_action_registries, **initial_actions):
 
@@ -121,7 +125,7 @@ class TransactionalActionRegistry(object):
         all_names = list(initial_actions.keys())
         for source in source_action_registries:
             all_names += source.list_registered_actions()
-        if len(all_names) != len(set(all_names)): # else, duplicate names found...
+        if len(all_names) != len(set(all_names)):  # else, duplicate names found...
             raise ValueError("Duplicate action names inserted into registry")
         for name in all_names:
             self._check_action_name(name)
@@ -132,7 +136,7 @@ class TransactionalActionRegistry(object):
             self._registered_actions.update(source.get_registry())
 
     def _check_action_name(self, name):
-        if name.startswith("_") or name.startswith("tx_"): # we do not want conflicts with normal methods
+        if name.startswith("_") or name.startswith("tx_"):  # we do not want conflicts with normal methods
             raise ValueError("Invalid action name %s" % name)
 
     def register_action(self, name, action):
@@ -158,30 +162,24 @@ class TransactionalActionRegistry(object):
         return self._registered_actions
 
 
-
-
-
-
 class ActionRecorderBase(object):
 
     _BEGIN_RECORD = 0
     _END_RECORD = 1
 
-
     def __init__(self, media_header=None):
         self._performed_actions_log = []
-        self._savepoint_indexes = [] # sorted positions of different savepoints, as slice index values
+        self._savepoint_indexes = []  # sorted positions of different savepoints, as slice index values
 
         if media_header is not None:
             self._initialize_recorder_media(media_header)
 
-
     ### Methods to manage savepoints ###
 
     def create_savepoint(self):
-        if not (self.is_empty() or self.last_action_is_finished()): # no savepoint inside an unfinished action !
+        if not (self.is_empty() or self.last_action_is_finished()):  # no savepoint inside an unfinished action !
             raise TransactionWorkflowError("No savepoint creation allowed during an action processing")
-        self._savepoint_indexes.append(len(self._performed_actions_log)) # not a problem if DUPLICATE savepoints!
+        self._savepoint_indexes.append(len(self._performed_actions_log))  # not a problem if DUPLICATE savepoints!
 
     def get_savepoint_count(self):
         return len(self._savepoint_indexes)
@@ -191,7 +189,7 @@ class ActionRecorderBase(object):
             raise TransactionWorkflowError("No existing savepoint")
         savepoint_position = self._savepoint_indexes[-1]
         records_concerned = len(self._performed_actions_log) - savepoint_position
-        return int(records_concerned / 2 + records_concerned % 2) # one of the actions might be unfinished...
+        return int(records_concerned / 2 + records_concerned % 2)  # one of the actions might be unfinished...
 
     def commit_last_savepoint(self):
         if not (self.is_empty() or self.last_action_is_finished()):
@@ -206,14 +204,14 @@ class ActionRecorderBase(object):
             raise TransactionWorkflowError("No savepoint to rollback to")
         if not (self._savepoint_indexes[-1] == len(self._performed_actions_log)):
             # we can only rollback the savepoint when following actions have been rolled back too
-            raise TransactionWorkflowError("Savepoint canot be rolled back before its subsequent actions are rolled back")
+            raise TransactionWorkflowError(
+                "Savepoint canot be rolled back before its subsequent actions are rolled back")
         del self._savepoint_indexes[-1]
 
     def _check_savepoints_integrity(self):
         if self.get_savepoint_count():
-            assert self._savepoint_indexes[-1] <= len(self._performed_actions_log) # savepoints must not point beyond the action stack
-
-
+            # savepoints must not point beyond the action stack
+            assert self._savepoint_indexes[-1] <= len(self._performed_actions_log)
 
     ### Methods to retrieve information of recorded actions ###
 
@@ -230,9 +228,7 @@ class ActionRecorderBase(object):
         # WARNING - TO BE MODIFIED WHEN ADDING SAVEPOINTS
         if self._performed_actions_log and self._performed_actions_log[-1][0] == self._END_RECORD:
             return True
-        return False # This means that the last action is in UNFINISHED state
-
-
+        return False  # This means that the last action is in UNFINISHED state
 
     ### Methods to process new actions ###
 
@@ -250,8 +246,6 @@ class ActionRecorderBase(object):
         self._performed_actions_log.append(record)
         self._append_record_to_media(self._END_RECORD, value)
 
-
-
     ### Methods to rollback a single action ###
 
     def get_unfinished_action(self):
@@ -262,9 +256,10 @@ class ActionRecorderBase(object):
     def rollback_unfinished_action(self):
         if (self.is_empty() or self.last_action_is_finished()):
             raise TransactionWorkflowError("No unfinished action to rollback")
-        self._performed_actions_log.pop() # removes last element
+        self._performed_actions_log.pop()  # removes last element
         self._remove_last_record_from_media()
-        if __debug__: self._check_savepoints_integrity()
+        if __debug__:
+            self._check_savepoints_integrity()
 
     def get_finished_action(self):
         if (self.is_empty() or not self.last_action_is_finished()):
@@ -274,43 +269,37 @@ class ActionRecorderBase(object):
     def rollback_finished_action(self):
         if (self.is_empty() or not self.last_action_is_finished()):
             raise TransactionWorkflowError("No finished action to rollback")
-        for _ in range(2): # we pop the beginning and ending records
-            self._performed_actions_log.pop() # removes last element
+        for _ in range(2):  # we pop the beginning and ending records
+            self._performed_actions_log.pop()  # removes last element
             self._remove_last_record_from_media()
-            if __debug__: self._check_savepoints_integrity()
-
-
+            if __debug__:
+                self._check_savepoints_integrity()
 
     ### Method to finalize the recording ###
 
     def commit_transaction(self):
         if not (self.is_empty() or self.last_action_is_finished()):
             raise TransactionWorkflowError("Can't commit unfinished action")
-        if self.get_savepoint_count(): # all savepoints must be rolled back or committed before !
+        if self.get_savepoint_count():  # all savepoints must be rolled back or committed before !
             raise TransactionWorkflowError("Pending savepoints must be committed first")
-        self._performed_actions_log = [] # full reinitialization, allowing further use of the transaction and recorder objects
+        self._performed_actions_log = []  # full reinitialization, allowing further use of the transaction and recorder objects
         self._commit_transaction_to_media()
-
 
     ### Data persistence methods, to be overriden in subclasses ###
     def _initialize_recorder_media(self, value):
         pass
 
     def _append_record_to_media(self, record_type, value):
-        pass # there, save to DB or to synchronized disk...
+        pass  # there, save to DB or to synchronized disk...
 
     def _remove_last_record_from_media(self):
-        pass # there, save to DB or to synchronized disk...
+        pass  # there, save to DB or to synchronized disk...
 
     def _commit_transaction_to_media(self):
-        pass # there, save to DB or to synchronized disk...
-
-
-
+        pass  # there, save to DB or to synchronized disk...
 
 
 class TransactionBase(object):
-
 
     def __init__(self, action_registry, action_recorder=None):
 
@@ -320,46 +309,44 @@ class TransactionBase(object):
             action_recorder = ActionRecorderBase()
         self._action_recorder = action_recorder
 
-
     def __getattr__(self, name):
         if not name in self._action_registry.list_registered_actions():
             raise AttributeError("Action Registry of %r has no action called %s" % (self, name))
         return functools.partial(self.tx_process_action, name)
 
-
-
     def _execute_selected_action(self, name, args=[], kwargs={}):
 
-        action = self._action_registry.get_action(name) # might raise exceptions - no rollback needed in this case
-        (new_args, new_kwargs) = action.preprocess_arguments(*args, **kwargs) # might raise exceptions - no rollback needed in this case
+        action = self._action_registry.get_action(name)  # might raise exceptions - no rollback needed in this case
+        # might raise exceptions - no rollback needed in this case
+        (new_args, new_kwargs) = action.preprocess_arguments(*args, **kwargs)
 
         with recording_failure_handler():
             self._begin_action_processing(name, new_args, new_kwargs)
 
-        result = action.process_action(*new_args, **new_kwargs) # might raise exceptions - recovery needed then
+        result = action.process_action(*new_args, **new_kwargs)  # might raise exceptions - recovery needed then
 
         with recording_failure_handler():
             self._finish_action_processing(result)
 
         return result
 
-
     def _rollback_to_last_consistent_state(self):
         """
-        
+
         May raise TransactionRecordingFailure errors, or any exception raised by the rollback operation.
         """
 
         with recording_failure_handler():
             need_unfinished_action_rollback = not self._action_recorder.is_empty() and not self._action_recorder.last_action_is_finished()
-            
+
         if need_unfinished_action_rollback:
 
             with recording_failure_handler():
                 (name, args, kwargs) = self._action_recorder.get_unfinished_action()
                 action = self._action_registry.get_action(name)
 
-            action.rollback_action(args=args, kwargs=kwargs, was_interrupted=True) # we try to rollback the unfinished action
+            # we try to rollback the unfinished action
+            action.rollback_action(args=args, kwargs=kwargs, was_interrupted=True)
 
             with recording_failure_handler():
                 self._action_recorder.rollback_unfinished_action()
@@ -367,7 +354,6 @@ class TransactionBase(object):
             return True
 
         return False
-
 
     def _rollback_consistent_transaction(self, rollback_to_last_savepoint=False):
         """
@@ -383,20 +369,19 @@ class TransactionBase(object):
                 raise TransactionWorkflowError("Remaining savepoints block the full rollback")
             actions_to_undo = self._action_recorder.get_action_count()
 
-
         for _ in range(actions_to_undo):
 
             with recording_failure_handler():
                 ((name, args, kwargs), result) = self._action_recorder.get_finished_action()
                 action = self._action_registry.get_action(name)
 
-            action.rollback_action(args=args, kwargs=kwargs, was_interrupted=False, result=result) # we try to rollback the last finished action
+            action.rollback_action(args=args, kwargs=kwargs, was_interrupted=False,
+                                   result=result)  # we try to rollback the last finished action
 
             with recording_failure_handler():
                 self._action_recorder.rollback_finished_action()
 
         assert rollback_to_last_savepoint or self._action_recorder.is_empty(), "incoherence in _rollback_consistent_transaction"
-
 
     def _commit_consistent_transaction(self):
 
@@ -406,15 +391,12 @@ class TransactionBase(object):
         with recording_failure_handler():
             self._action_recorder.commit_transaction()
 
-
     def _begin_action_processing(self, name, args, kwargs):
         record = (name, args, kwargs)
         self._action_recorder.begin_action_processing(record)
 
     def _finish_action_processing(self, result):
         self._action_recorder.finish_action_processing(result)
-
-
 
     # To be overridden in subclasses !!!
 
@@ -427,7 +409,6 @@ class TransactionBase(object):
     def tx_commit(self):
         raise NotImplementedError(__name__)
 
-
     def tx_create_savepoint(self):
         raise NotImplementedError(__name__)
 
@@ -438,9 +419,6 @@ class TransactionBase(object):
         raise NotImplementedError(__name__)
 
 
-
-
-
 class InteractiveTransaction(TransactionBase):
 
     def __init__(self, action_registry, action_recorder=None):
@@ -448,27 +426,27 @@ class InteractiveTransaction(TransactionBase):
 
     def tx_process_action(self, name, *args, **kwargs):
 
-        if not (self._action_recorder.is_empty() or self._action_recorder.last_action_is_finished()): # no unfinished action must be pending
+        if not (self._action_recorder.is_empty() or self._action_recorder.last_action_is_finished()
+                ):  # no unfinished action must be pending
             raise TransactionWorkflowError("Can't process new action while another one is in process")
 
         try:
             return self._execute_selected_action(name, args, kwargs)
         except TransactionFailure:
-            raise # that's very bad... just let it propagate
+            raise  # that's very bad... just let it propagate
         except Exception as e:
             raise e  # we just reraise the original exception
 
     def tx_rollback(self):
         try:
-            self._rollback_to_last_consistent_state() # in case it's not done yet
+            self._rollback_to_last_consistent_state()  # in case it's not done yet
             self._rollback_consistent_transaction()
         except Exception as f:
-            #TODO - PY3K - real exception chaining required here !
+            # TODO - PY3K - real exception chaining required here !
             raise TransactionRollbackFailure("%r raised during rollback attempt" % f)
 
     def tx_commit(self):
-        self._commit_consistent_transaction() # should already raise proper exceptions
-
+        self._commit_consistent_transaction()  # should already raise proper exceptions
 
     @contextmanager
     def tx_savepoint(self):
@@ -476,7 +454,7 @@ class InteractiveTransaction(TransactionBase):
         try:
             yield
         except TransactionFailure:
-            raise # we must not try to handle this critical problem by ourselves...
+            raise  # we must not try to handle this critical problem by ourselves...
         except Exception:
             self.tx_rollback_savepoint()
             raise
@@ -492,9 +470,3 @@ class InteractiveTransaction(TransactionBase):
 
     def tx_commit_savepoint(self):
         self._action_recorder.commit_last_savepoint()
-
-
-
-
-
-
