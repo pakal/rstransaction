@@ -30,7 +30,7 @@ setup(
     url='https://github.com/pakal/rstransaction',
     license="http://www.opensource.org/licenses/mit-license.php",
     platforms=["any"],
-    description="Extendable transaction system, to build workflows with commit/rollback semantic.",
+    description="Extendable transaction system, to build workflows with commit/rollback semantics.",
     classifiers=filter(None, classifiers.split("\n")),
     long_description=read("README.rst"),
 
