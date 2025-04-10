@@ -174,7 +174,7 @@ class TestTransactionBase(unittest.TestCase):
         tb = self.transaction_base
 
         # we check that magic attribute handling works well
-        self.assertTrue(isinstance(tb.action_success, collections.Callable))
+        self.assertTrue(callable(tb.action_success))
         self.assertRaises(AttributeError, getattr, tb, "unexisting_action_name")
 
         # we check that public methods are well abstract
