@@ -33,15 +33,6 @@ setup(
     description="Extendable transaction system, to build workflows with commit/rollback semantics.",
     classifiers=filter(None, classifiers.split("\n")),
     long_description=read("README.rst"),
-
-    #package_dir={'': 'src'},
     packages=("rstransaction",),
-
-    # test_suite='your.module.tests',
-
-    use_2to3=False,
-    #convert_2to3_doctests=['src/your/module/README.txt'],
-    #use_2to3_fixers=['your.fixers'],
-    #use_2to3_exclude_fixers=['lib2to3.fixes.fix_import'],
 )
 

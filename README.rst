@@ -1,11 +1,11 @@
 RSTRANSACTION
 ================
 
-Rstransaction is a python2/python3 toolbox to create transactional systems, for any kind of operations: in-memory, on filesystems, on remote storages...
+Rstransaction is a Python3.7+ toolbox to create transactional systems, for any kind of operations: in-memory, on filesystems, on remote storages...
 
 It supports commits/rollbacks and savepoints.
 
-It was never used in production, but is well tested, and easily extendable to support different kinds of behaviour : immediate or lazy actions, recording of operations to disk files or DBs in case of crash, auto-rollback on error or not...
+It was never used in production, but is properly tested, and easily extendable to support different kinds of behaviour : immediate or lazy actions, recording of operations to disk files or DBs in case of crash, auto-rollback on error or not...
 
 
 INSTALL
